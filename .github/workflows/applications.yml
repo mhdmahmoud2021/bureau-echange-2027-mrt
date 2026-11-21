@@ -1,0 +1,99 @@
+# Fabrique automatiquement : APK Android, installateur Windows (.exe), Mac (.dmg), iPhone (.ipa non signé)
+# GitHub → onglet « Actions » → « Applications Bureau d'Échange » → « Run workflow »
+# À la fin, les fichiers sont publiés dans « Releases » (liens fixes pour la mise à jour automatique)
+name: Applications Bureau d'Échange
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: 2-applications } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm install
+      - run: npm run prepare-www
+      - run: npx cap add android
+      - name: Permissions micro et appareil photo (messages vocaux, photos)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.CAMERA" />#' $M
+          grep -c RECORD_AUDIO $M
+      - run: npx capacitor-assets generate --android --iconBackgroundColor '#d9b45a' --splashBackgroundColor '#0e3530' || true
+      - run: npx cap sync android
+      - name: Même signature à chaque fois (pour installer la mise à jour par-dessus l'ancienne)
+        run: |
+          if [ -z "$CLE" ]; then echo "::error::Ajoute le secret ANDROID_CLE (Settings → Secrets and variables → Actions). Voir LISEZMOI."; exit 1; fi
+          mkdir -p ~/.android && echo "$CLE" | base64 -d > ~/.android/debug.keystore && ls -la ~/.android/debug.keystore
+        env:
+          CLE: ${{ secrets.ANDROID_CLE }}
+      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - run: mkdir -p ../out && cp android/app/build/outputs/apk/debug/app-debug.apk "../out/Bureau-Echange.apk"
+      - uses: actions/upload-artifact@v4
+        with: { name: Android-APK, path: out/Bureau-Echange.apk }
+
+  publier:
+    needs: [android, windows, mac]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: fichiers, merge-multiple: true }
+      - id: v
+        run: echo "v=$(node -p "require('./2-applications/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.v }}
+          name: Bureau d'Échange ${{ steps.v.outputs.v }}
+          make_latest: true
+          body: "Nouvelle version ${{ steps.v.outputs.v }}. Ensuite, dans la console admin → Mise à jour : mets ${{ steps.v.outputs.v }} puis Enregistrer."
+          files: |
+            fichiers/Bureau-Echange.apk
+            fichiers/Bureau-Echange-Windows.exe
+            fichiers/Bureau-Echange-Mac.dmg
+
+  windows:
+    runs-on: windows-latest
+    defaults: { run: { working-directory: 2-applications } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install
+      - run: npm run build:win
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+      - name: Nom fixe pour le lien de téléchargement
+        shell: bash
+        run: cp "$(ls dist/*.exe | head -1)" dist/Bureau-Echange-Windows.exe
+      - uses: actions/upload-artifact@v4
+        with: { name: Windows-PC, path: 2-applications/dist/Bureau-Echange-Windows.exe }
+
+  mac:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: 2-applications } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install
+      - name: Fabriquer l'app Mac (Intel + Apple M)
+        run: npm run prepare-www && npx electron-builder --mac dir --universal
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+      - name: Signature locale (sinon macOS dit « logiciel malveillant ») + .dmg
+        run: |
+          APP="$(ls -d dist/mac*/*.app | head -1)"
+          echo "App : $APP"
+          xattr -cr "$APP"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          mkdir -p dmg && cp -R "$APP" dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "Bureau d'Echange" -srcfolder dmg -ov -format UDZO "dist/Bureau-Echange-Mac.dmg"
+      - uses: actions/upload-artifact@v4
+        with: { name: Mac, path: 2-applications/dist/Bureau-Echange-Mac.dmg }
