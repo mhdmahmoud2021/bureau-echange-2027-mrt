@@ -1,0 +1,65 @@
+{
+  "name": "bureau-echange",
+  "productName": "Bureau d'Echange",
+  "version": "1.8.0",
+  "description": "Bureau d'Échange — caisse, change et transferts",
+  "author": "Bureau d'Echange",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "prepare-www": "node scripts/prepare-www.js",
+    "pc": "npm run prepare-www && electron .",
+    "build:win": "npm run prepare-www && electron-builder --win nsis",
+    "build:mac": "npm run prepare-www && electron-builder --mac dmg",
+    "build:linux": "npm run prepare-www && electron-builder --linux AppImage",
+    "android": "npm run prepare-www && npx cap sync android",
+    "ios": "npm run prepare-www && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.1.2",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "6.1.2",
+    "@capacitor/ios": "6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "6.1.2",
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "app.bureauechange",
+    "productName": "Bureau d'Echange",
+    "files": [
+      "electron/**",
+      "www/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Bureau d'Echange"
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.finance",
+      "target": "dmg",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Pour envoyer des messages vocaux.",
+        "NSCameraUsageDescription": "Pour envoyer des photos dans les messages."
+      }
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": "AppImage"
+    }
+  }
+}

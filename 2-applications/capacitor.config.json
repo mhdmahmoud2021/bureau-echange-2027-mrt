@@ -1,0 +1,8 @@
+{
+  "appId": "app.bureauechange",
+  "appName": "Bureau d'Echange",
+  "webDir": "www",
+  "backgroundColor": "#0e3530",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" }
+}
