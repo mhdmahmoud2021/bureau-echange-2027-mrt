@@ -1,7 +1,7 @@
 {
   "name": "bureau-echange",
   "productName": "Bureau d'Echange",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Bureau d'Échange — caisse, change et transferts",
   "author": "Bureau d'Echange",
   "main": "electron/main.js",
